@@ -23,10 +23,55 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Check whether version already exists on PyPI
+        id: version_check
+        run: |
+          python - <<'PY'
+          import json
+          import tomllib
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          data = tomllib.loads(Path("pyproject.toml").read_text())
+          project_name = data["project"]["name"]
+          project_version = data["project"]["version"]
+
+          url = f"https://pypi.org/pypi/{project_name}/json"
+
+          exists = False
+          try:
+              with urllib.request.urlopen(url) as response:
+                  payload = json.load(response)
+                  releases = payload.get("releases", {})
+                  files = releases.get(project_version, [])
+                  exists = bool(files)
+          except urllib.error.HTTPError as error:
+              if error.code != 404:
+                  raise
+
+          should_publish = not exists
+          with open("$GITHUB_OUTPUT", "a", encoding="utf-8") as f:
+              f.write(f"package_name={project_name}\n")
+              f.write(f"package_version={project_version}\n")
+              f.write(f"should_publish={'true' if should_publish else 'false'}\n")
+
+          if should_publish:
+              print(f"{project_name}=={project_version} not found on PyPI. Publish will run.")
+          else:
+              print(f"{project_name}=={project_version} already exists on PyPI. Publish will be skipped.")
+          PY
+
       - name: Build package
         run: |
           python -m pip install --upgrade pip build
           python -m build
 
       - name: Publish to PyPI
+        if: steps.version_check.outputs.should_publish == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Publish skipped
+        if: steps.version_check.outputs.should_publish != 'true'
+        run: |
+          echo "Skipping publish: ${{ steps.version_check.outputs.package_name }}==${{ steps.version_check.outputs.package_version }} already exists on PyPI"
