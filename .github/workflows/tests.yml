@@ -1,0 +1,50 @@
+name: Run Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    name: Root tests (Python 3.10)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.10"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --locked --dev
+
+      - name: Run root test suite
+        run: uv run pytest
+
+  celeryspread-tests:
+    name: Celeryspread tests (Python 3.10)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.10"
+          enable-cache: true
+
+      - name: Install dependencies
+        working-directory: celeryspread
+        run: |
+          uv sync --locked --dev
+
+      - name: Run celeryspread test suite
+        working-directory: celeryspread
+        run: uv run pytest

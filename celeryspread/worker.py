@@ -34,7 +34,7 @@ class Worker:
 
     @property
     def capabilities(self) -> list[str]:
-        return [self.location, *self._capabilities]
+        return list(self._capabilities)
 
     def _subscribe_to_single_capability_queues(self) -> None:
         queue_names = normalize_capabilities(self.capabilities)
