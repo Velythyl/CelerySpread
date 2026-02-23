@@ -29,6 +29,7 @@ jobs:
           python -m pip install --upgrade pip tomli
           python - <<'PY'
           import json
+          import os
           import urllib.error
           import urllib.request
           from pathlib import Path
@@ -56,7 +57,11 @@ jobs:
                   raise
 
           should_publish = not exists
-          with open("$GITHUB_OUTPUT", "a", encoding="utf-8") as f:
+            github_output = os.environ.get("GITHUB_OUTPUT")
+            if not github_output:
+              raise RuntimeError("GITHUB_OUTPUT is not set")
+
+            with open(github_output, "a", encoding="utf-8") as f:
               f.write(f"package_name={project_name}\n")
               f.write(f"package_version={project_version}\n")
               f.write(f"should_publish={'true' if should_publish else 'false'}\n")
@@ -80,5 +85,4 @@ jobs:
       - name: Publish skipped
         if: steps.version_check.outputs.should_publish != 'true'
         run: |
-          echo "::error::Skipping publish: ${{ steps.version_check.outputs.package_name }}==${{ steps.version_check.outputs.package_version }} already exists on PyPI"
-          exit 1
+          echo "::notice::Skipping publish: ${{ steps.version_check.outputs.package_name }}==${{ steps.version_check.outputs.package_version }} already exists on PyPI"
