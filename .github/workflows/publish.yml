@@ -1,44 +1,27 @@
 name: Publish to PyPI
 
 on:
-  push:
-    branches:
-      - release
+  workflow_run:
+    workflows: ["Run Tests"]
+    types: [completed]
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
-  tests:
-    name: Run test suite
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.10"
-          enable-cache: true
-
-      - name: Install dependencies
-        run: |
-          uv sync --extra dev
-
-      - name: Run tests
-        run: uv run pytest
-
   publish:
     name: Build and publish package
     runs-on: ubuntu-latest
-    needs: tests
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'release'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
