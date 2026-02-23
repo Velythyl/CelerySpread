@@ -76,7 +76,7 @@ def test_worker_subscribes_to_single_capability_queues(celery_app):
             capabilities=["FactoryB", "gpu", "arm"],
         )
         assert set(worker.queues) == {"FactoryB", "arm", "gpu"}
-        assert _wait_for_worker_queues(celery_app, worker.id, set(worker.queues))
+        assert _wait_for_worker_queues(celery_app, worker.hostname, set(worker.queues))
 
 
 def test_worker_task_skips_registration_when_capabilities_do_not_match(celery_app):
