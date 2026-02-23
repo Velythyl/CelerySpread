@@ -19,6 +19,16 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["celeryspread"]
+exclude = [
+    "celeryspread/celery_app.py",
+    "celeryspread/main.py",
+]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "celeryspread/celery_app.py",
+    "celeryspread/main.py",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
