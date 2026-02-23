@@ -30,7 +30,6 @@ class Worker:
 
         self.name = name
         self.location = location
-        self.id = generate_worker_id()
         if capabilities is None:
             capabilities = []
         self._capabilities = normalize_capabilities([location] + capabilities)
