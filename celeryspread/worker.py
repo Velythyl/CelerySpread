@@ -7,6 +7,7 @@ from typing import TypeVar
 from celery import Celery
 
 from .utils import generate_worker_id, normalize_capabilities
+from .tasks import register_awakening_task
 
 F = TypeVar("F", bound=Callable)
 REQUIRED_CAPS_ATTR = "__celeryspread_required_capabilities__"
@@ -31,6 +32,7 @@ class Worker:
         self.queues: list[str] = []
 
         self._subscribe_to_single_capability_queues()
+        register_awakening_task(self.app)   # all workers can wake up
 
     @property
     def capabilities(self) -> list[str]:
