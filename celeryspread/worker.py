@@ -20,15 +20,19 @@ class Worker:
     def __init__(
         self,
         app: Celery,
-        name: str,
-        location: str,
+        hostname: str,
         capabilities: Iterable[str] | None = None,
     ):
         self.app = app
+
+        self.hostname = hostname
+        name, location = hostname.split("@")
+
         self.name = name
         self.location = location
-        self.id = generate_worker_id(name=name, location=location)
-        self._capabilities = normalize_capabilities(capabilities)
+        if capabilities is None:
+            capabilities = []
+        self._capabilities = normalize_capabilities([location] + capabilities)
         self.queues: list[str] = []
 
         self._subscribe_to_single_capability_queues()
@@ -42,7 +46,7 @@ class Worker:
         queue_names = normalize_capabilities(self.capabilities)
         self.queues = queue_names
         for queue_name in queue_names:
-            self.app.control.add_consumer(queue=queue_name, destination=[self.id])
+            self.app.control.add_consumer(queue=queue_name, destination=[self.hostname])
 
     def task(self, *task_args, **task_kwargs):
         celery_task_decorator = self.app.task(*task_args, **task_kwargs)

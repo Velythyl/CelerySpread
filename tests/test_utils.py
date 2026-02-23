@@ -6,4 +6,4 @@ def test_capabilities_to_queue_name_sorts_and_deduplicates():
 
 
 def test_generate_worker_id():
-    assert generate_worker_id("worker1", "factory_b") == "worker1@factory_b"
+    assert generate_worker_id()

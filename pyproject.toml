@@ -1,6 +1,6 @@
 [project]
 name = "celeryspread"
-version = "0.1.1"
+version = "0.1.2"
 description = "Capability-based Celery task routing with lazy queue awakening"
 readme = "README.md"
 requires-python = ">=3.10"
