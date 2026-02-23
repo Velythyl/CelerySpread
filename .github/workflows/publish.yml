@@ -57,11 +57,11 @@ jobs:
                   raise
 
           should_publish = not exists
-            github_output = os.environ.get("GITHUB_OUTPUT")
-            if not github_output:
+          github_output = os.environ.get("GITHUB_OUTPUT")
+          if not github_output:
               raise RuntimeError("GITHUB_OUTPUT is not set")
 
-            with open(github_output, "a", encoding="utf-8") as f:
+          with open(github_output, "a", encoding="utf-8") as f:
               f.write(f"package_name={project_name}\n")
               f.write(f"package_version={project_version}\n")
               f.write(f"should_publish={'true' if should_publish else 'false'}\n")
