@@ -34,8 +34,7 @@ def test_task_spec_marks_required_capabilities():
 def test_worker_task_registers_when_capabilities_match(celery_app):
     worker = Worker(
         app=celery_app,
-        name="worker1",
-        location="FactoryB",
+        hostname="worker1@FactoryB",
         capabilities=["FactoryB", "gpu"],
     )
     before_tasks = set(celery_app.tasks.keys())
@@ -73,8 +72,7 @@ def test_worker_subscribes_to_single_capability_queues(celery_app):
     ):
         worker = Worker(
             app=celery_app,
-            name="worker1",
-            location="FactoryB",
+            hostname="worker1@FactoryB",
             capabilities=["FactoryB", "gpu", "arm"],
         )
         assert set(worker.queues) == {"FactoryB", "arm", "gpu"}
@@ -91,8 +89,7 @@ def test_worker_task_skips_registration_when_capabilities_do_not_match(celery_ap
     ):
         worker = Worker(
             app=celery_app,
-            name="worker1",
-            location="FactoryB",
+            hostname="worker1@FactoryB",
             capabilities=["FactoryB", "cpu"],
         )
         before_tasks = set(celery_app.tasks.keys())

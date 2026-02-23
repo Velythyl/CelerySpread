@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterable
 
 
@@ -15,5 +16,5 @@ def capabilities_to_queue_name(capabilities: Iterable[str]) -> str:
     return ".".join(normalized)
 
 
-def generate_worker_id(name: str, location: str) -> str:
-    return f"{name}@{location}"
+def generate_worker_id() -> str:
+    return str(uuid.uuid4().hex)
