@@ -1,27 +1,27 @@
-name: Publish to PyPI
+name: Release to PyPI
 
 on:
-  workflow_run:
-    workflows: ["Run Tests"]
-    types: [completed]
+  push:
+    branches:
+      - release
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
+  tests:
+    name: Run tests
+    uses: ./.github/workflows/test-reusable.yml
+
   publish:
     name: Build and publish package
     runs-on: ubuntu-latest
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'release'
+    needs: tests
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
