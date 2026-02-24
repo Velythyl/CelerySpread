@@ -80,6 +80,11 @@ def test_send_task_default_queue_when_empty_requirements(celery_app):
         hostname="producer-default@local",
         queues=["default"],
     ):
+        worker = Worker(
+            app=celery_app,
+            hostname="producer-default@local",
+            capabilities=["FactoryB", "gpu"],
+        )
         result = send_task("tasks.ping", requirements=[])
         assert result.get(timeout=10) == "pong"
 
@@ -98,6 +103,7 @@ def test_send_task_default_queue_when_none_requirements(celery_app):
         hostname="producer-none@local",
         queues=["default"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-none@local", capabilities=[])
         result = send_task("tasks.ping_none", requirements=None)
         assert result.get(timeout=10) == "pong-none"
 
@@ -115,6 +121,7 @@ def test_send_task_simple_requirement_routes_directly(celery_app):
         hostname="producer-gpu@local",
         queues=["gpu"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-gpu@local", capabilities=["gpu"])
         result = send_task("tasks.inference", requirements=["gpu"])
         assert result.get(timeout=10) == "gpu-ok"
 
@@ -133,6 +140,7 @@ def test_send_task_simple_requirement_normalizes_input(celery_app):
         hostname="producer-normalize@local",
         queues=["gpu"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-normalize@local", capabilities=["gpu"])
         result = send_task("tasks.inference_normalize", requirements=["  gpu  "])
         assert result.get(timeout=10) == "normalized"
 
@@ -153,6 +161,11 @@ def test_send_task_complex_requirement_triggers_awakening(celery_app):
         hostname="producer-complex@FactoryB",
         queues=["default", "FactoryB", "gpu"],
     ):
+        worker = Worker(
+            app=celery_app,
+            hostname="producer-complex@FactoryB",
+            capabilities=["FactoryB", "gpu"],
+        )
         result = send_task("tasks.process_video", requirements=["FactoryB", "gpu"])
         assert result.get(timeout=10) == "processed"
 
@@ -171,6 +184,7 @@ def test_send_task_with_args_and_kwargs(celery_app):
         hostname="producer-args@local",
         queues=["default"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-args@local", capabilities=[])
         result = send_task(
             "tasks.add_with_kwargs",
             args=(3, 4),
@@ -211,6 +225,7 @@ def test_producer_task_without_task_spec(celery_app):
         hostname="producer-simple@local",
         queues=["default"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-simple@local", capabilities=[])
         result = simple_task.delay(5)
         assert result.get(timeout=10) == 10
 
@@ -232,6 +247,7 @@ def test_producer_task_delay_routes_to_default_queue_without_requirements(celery
         hostname="producer-delay@FactoryB",
         queues=["default"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-delay@FactoryB", capabilities=[])
         result = render.delay("frame-42")
         assert result.get(timeout=10) == "frame-42"
 
@@ -250,6 +266,7 @@ def test_producer_task_delay_routes_using_requirements_kwarg(celery_app):
         hostname="producer-kwargs@gpu",
         queues=["gpu"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-kwargs@gpu", capabilities=["gpu"])
         result = add.delay(4, 4, CSR=["gpu"])
         assert result.get(timeout=10) == 8
 
@@ -270,6 +287,11 @@ def test_producer_task_delay_requirements_kwarg_triggers_complex_awakening(celer
         hostname="producer-kwargs-complex@FactoryB",
         queues=["default", "FactoryB", "gpu"],
     ):
+        worker = Worker(
+            app=celery_app,
+            hostname="producer-kwargs-complex@FactoryB",
+            capabilities=["FactoryB", "gpu"],
+        )
         result = render.delay("frame-77", CSR=["FactoryB", "gpu"])
         assert result.get(timeout=10) == "frame-77"
 
@@ -289,6 +311,7 @@ def test_producer_task_apply_async_with_explicit_queue_bypasses_routing(celery_a
         hostname="producer-explicit@local",
         queues=["custom_queue"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-explicit@local", capabilities=["custom_queue"])
         # Explicit queue should bypass CSR routing
         result = my_task.apply_async(args=(7,), queue="custom_queue")
         assert result.get(timeout=10) == 21
@@ -309,6 +332,7 @@ def test_producer_task_apply_async_with_csr_in_kwargs(celery_app):
         hostname="producer-async-csr@local",
         queues=["gpu"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-async-csr@local", capabilities=["gpu"])
         result = my_task = compute.apply_async(args=(5,), kwargs={CSR: ["gpu"]})
         assert result.get(timeout=10) == 15
 
@@ -328,6 +352,7 @@ def test_producer_task_csr_not_passed_to_function(celery_app):
         hostname="producer-strip@local",
         queues=["gpu"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-strip@local", capabilities=["gpu"])
         result = my_func.delay(other_arg="value", CSR=["gpu"])
         returned_kwargs = result.get(timeout=10)
         assert CSR not in returned_kwargs
@@ -352,6 +377,7 @@ def test_producer_task_with_task_spec_and_csr_combined(celery_app):
         hostname="producer-combined@local",
         queues=["arm"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-combined@local", capabilities=["arm"])
         result = specialized_compute.delay(3, CSR=["arm"])
         assert result.get(timeout=10) == 12
 
@@ -371,6 +397,7 @@ def test_producer_task_csr_normalizes_requirements(celery_app):
         hostname="producer-csr-norm@local",
         queues=["gpu"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-csr-norm@local", capabilities=["gpu"])
         result = task_norm.delay(42, CSR=["  gpu  "])
         assert result.get(timeout=10) == 42
 
@@ -390,6 +417,7 @@ def test_producer_task_csr_empty_list_routes_to_default(celery_app):
         hostname="producer-csr-empty@local",
         queues=["default"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-csr-empty@local", capabilities=[])
         result = task_empty.delay(10, CSR=[])
         assert result.get(timeout=10) == 11
 
@@ -411,6 +439,11 @@ def test_producer_task_multiple_csr_requirements_triggers_awakening(celery_app):
         hostname="producer-multi-csr@local",
         queues=["default", "gpu", "arm", "FactoryB"],
     ):
+        worker = Worker(
+            app=celery_app,
+            hostname="producer-multi-csr@local",
+            capabilities=["gpu", "arm", "FactoryB"],
+        )
         result = multi_req_task.delay("hello", CSR=["gpu", "arm", "FactoryB"])
         assert result.get(timeout=10) == "HELLO"
 
@@ -445,6 +478,7 @@ def test_producer_task_apply_async_with_other_options(celery_app):
         hostname="producer-opts@local",
         queues=["default"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-opts@local", capabilities=[])
         # countdown and other options should work
         result = task_with_opts.apply_async(args=(99,), countdown=0)
         assert result.get(timeout=10) == 99
@@ -467,6 +501,11 @@ def test_send_task_queue_name_deterministic(celery_app):
         hostname="producer-qname@local",
         queues=["default", "factoryb.gpu"],
     ):
+        worker = Worker(
+            app=celery_app,
+            hostname="producer-qname@local",
+            capabilities=["FactoryB", "gpu"],
+        )
         register_awakening_task(celery_app, inspect_timeout=1.5)
         # Order 1
         result1 = send_task("tasks.queue_name_test", requirements=["gpu", "FactoryB"])
@@ -492,6 +531,7 @@ def test_send_task_routes_to_configured_default_queue(celery_app):
         hostname="producer-primary@local",
         queues=["primary"],
     ):
+        worker = Worker(app=celery_app, hostname="producer-primary@local", capabilities=[])
         result = send_task("tasks.ping_primary", requirements=[])
         assert result.get(timeout=10) == "pong-primary"
 
@@ -513,6 +553,11 @@ def test_send_task_complex_requirements_use_configured_default_queue_for_awakeni
         hostname="producer-complex-primary@FactoryB",
         queues=["primary", "FactoryB", "gpu"],
     ):
+        worker = Worker(
+            app=celery_app,
+            hostname="producer-complex-primary@FactoryB",
+            capabilities=["FactoryB", "gpu"],
+        )
         result = send_task("tasks.process_video_primary", requirements=["FactoryB", "gpu"])
         assert result.get(timeout=10) == "processed-primary"
 

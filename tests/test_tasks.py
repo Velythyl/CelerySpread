@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from celery.contrib.testing.worker import start_worker
 
 from celeryspread.tasks import find_matching_workers, register_awakening_task
+from celeryspread.worker import Worker
 
 
 # --- find_matching_workers tests ---
@@ -22,6 +23,8 @@ def test_find_matching_workers_filters_correctly(celery_app):
         hostname="worker2@cloud",
         queues=["cloud"],
     ):
+        worker1 = Worker(app=celery_app, hostname="worker1@factory_b", capabilities=["FactoryB", "gpu"])
+        worker2 = Worker(app=celery_app, hostname="worker2@cloud", capabilities=["cloud"])
         inspector = celery_app.control.inspect(timeout=2)
         workers = find_matching_workers(inspector, ["FactoryB", "gpu"])
         assert workers == ["worker1@factory_b"]
@@ -135,6 +138,8 @@ def test_register_awakening_task_registers_and_awakens_workers(celery_app):
         hostname="worker2@factory_b",
         queues=["default", "FactoryB"],
     ):
+        worker1 = Worker(app=celery_app, hostname="worker1@factory_b", capabilities=["FactoryB", "gpu"])
+        worker2 = Worker(app=celery_app, hostname="worker2@factory_b", capabilities=["FactoryB"])
         result = task.delay("FactoryB.gpu", ["FactoryB", "gpu"]).get(timeout=10)
 
     assert result["status"] == "awakened"
@@ -158,6 +163,7 @@ def test_register_awakening_task_no_matching_workers(celery_app):
         hostname="worker1@factory_b",
         queues=["default", "cpu"],  # No gpu capability
     ):
+        worker = Worker(app=celery_app, hostname="worker1@factory_b", capabilities=["cpu"])
         result = task.delay("gpu.arm", ["gpu", "arm"]).get(timeout=10)
 
     assert result["status"] == "no_matching_workers"
@@ -211,6 +217,7 @@ def test_register_awakening_task_without_notify_admin(celery_app):
         hostname="worker1@factory_b",
         queues=["default"],
     ):
+        worker = Worker(app=celery_app, hostname="worker1@factory_b", capabilities=[])
         result = task.delay("nonexistent.queue", ["nonexistent"]).get(timeout=10)
 
     assert result["status"] == "no_matching_workers"
@@ -228,6 +235,7 @@ def test_register_awakening_task_single_requirement(celery_app):
         hostname="worker1@factory_b",
         queues=["default", "gpu"],
     ):
+        worker = Worker(app=celery_app, hostname="worker1@factory_b", capabilities=["gpu"])
         result = task.delay("gpu", ["gpu"]).get(timeout=10)
 
     assert result["status"] == "awakened"
@@ -253,6 +261,8 @@ def test_register_awakening_task_awakens_multiple_workers(celery_app):
         hostname="worker2@factory_b",
         queues=["default", "gpu", "FactoryB"],
     ):
+        worker1 = Worker(app=celery_app, hostname="worker1@factory_b", capabilities=["gpu", "FactoryB"])
+        worker2 = Worker(app=celery_app, hostname="worker2@factory_b", capabilities=["gpu", "FactoryB"])
         result = task.delay("FactoryB.gpu", ["FactoryB", "gpu"]).get(timeout=10)
 
     assert result["status"] == "awakened"

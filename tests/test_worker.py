@@ -207,6 +207,11 @@ def test_worker_task_registers_when_capabilities_match(celery_app):
         hostname="worker1@FactoryB",
         queues=["default"],
     ):
+        runtime_worker = Worker(
+            app=celery_app,
+            hostname="worker1@FactoryB",
+            capabilities=["FactoryB", "gpu"],
+        )
         result = process_video.delay("vid-1")
         assert result.get(timeout=10) == "vid-1"
 
@@ -408,5 +413,10 @@ def test_worker_task_runs_on_configured_default_queue(celery_app):
         hostname="worker1@FactoryB",
         #queues=["primary"],
     ):
+        runtime_worker = Worker(
+            app=celery_app,
+            hostname="worker1@FactoryB",
+            capabilities=["FactoryB", "gpu"],
+        )
         result = process_video.delay("vid-primary")
         assert result.get(timeout=10) == "vid-primary"

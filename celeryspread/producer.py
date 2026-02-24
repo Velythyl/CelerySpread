@@ -45,9 +45,9 @@ def _dispatch_with_requirements(
 
     if not requirements_list:
         if apply_async_callback is None:
-            return app.send_task(task_name, args=args, kwargs=kwargs, queue=app.conf.task_default_queue)
+            return app.send_task(task_name, args=args, kwargs=kwargs, queue="celeryspread")
         options = dict(apply_async_options)
-        options.setdefault("queue", app.conf.task_default_queue)
+        options.setdefault("queue", "celeryspread")
         return apply_async_callback(args=args, kwargs=kwargs, **options)
 
     queue_name = capabilities_to_queue_name(requirements_list)
@@ -57,7 +57,7 @@ def _dispatch_with_requirements(
         app.send_task(
             "celeryspread.tasks.awaken_complex_queue_workers",
             args=[queue_name, requirements_list],
-            queue=app.conf.task_default_queue,
+            queue="celeryspread",
         )
 
     if apply_async_callback is None:
