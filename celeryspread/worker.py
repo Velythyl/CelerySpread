@@ -5,6 +5,7 @@ from typing import TypeVar
 
 from celery import Celery
 
+from .celery_entity import CeleryEntity
 from .constants import (
     REQUIRED_CAPS_ATTR,
     SKIP_REASON_ATTR,
@@ -16,15 +17,18 @@ from .tasks import register_awakening_task
 
 F = TypeVar("F", bound=Callable)
 
-
-class Worker:
+class Worker(CeleryEntity):
     def __init__(
         self,
         app: Celery,
         hostname: str,
         capabilities: Iterable[str] | None = None,
+        *,
+        worker: bool | None = None,
     ):
-        self.app = app
+        if worker not in (None, True):
+            raise TypeError("Worker only supports worker=True.")
+        super().__init__(app)
 
         self.hostname = hostname.strip()
         name, location = normalize_hostname(self.hostname)

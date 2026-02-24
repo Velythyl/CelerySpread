@@ -5,6 +5,7 @@ from typing import Any
 
 from celery import Celery, Task
 
+from .celery_entity import CeleryEntity
 from .constants import CSR, REQUIRED_CAPS_ATTR
 from .utils import capabilities_to_queue_name, normalize_capabilities
 
@@ -85,30 +86,25 @@ def send_task(
     )
 
 
-class Producer:
-    def __init__(self, app: Celery):
-        self.app = app
+class Producer(CeleryEntity):
+    def __init__(self, app: Celery, *, worker: bool | None = None):
+        if worker not in (None, False):
+            raise TypeError("Producer only supports worker=False.")
+        super().__init__(app)
         configure(app)
 
     def task(self, *task_args, **task_kwargs):
         def decorator(func):
-            # Store task_spec requirements as metadata (used only for worker registration)
             task_spec_requirements: set[str] = set(getattr(func, REQUIRED_CAPS_ATTR, set()))
             setattr(func, REQUIRED_CAPS_ATTR, task_spec_requirements)
 
             class ProducerAwareTask(Task):
                 abstract = True
-                # task_spec requirements stored for metadata/introspection only
                 _celeryspread_task_spec = task_spec_requirements
 
                 def apply_async(self, args=None, kwargs=None, **options):
                     kwargs_for_dispatch = dict(kwargs or {})
-                    # Producer requirements are ADDITIONAL - they control routing
-                    # If not specified, default to None (routes to default queue)
-                    runtime_requirements = kwargs_for_dispatch.pop(
-                        CSR,
-                        None,
-                    )
+                    runtime_requirements = kwargs_for_dispatch.pop(CSR, None)
 
                     if "queue" in options:
                         return super().apply_async(args=args, kwargs=kwargs_for_dispatch, **options)
@@ -122,7 +118,9 @@ class Producer:
                         kwargs=kwargs_for_dispatch,
                         requirements=runtime_requirements,
                         apply_async_callback=lambda args, kwargs, **dispatch_options: super_apply_async(
-                            args=args, kwargs=kwargs, **dispatch_options
+                            args=args,
+                            kwargs=kwargs,
+                            **dispatch_options,
                         ),
                         apply_async_options=options,
                     )
