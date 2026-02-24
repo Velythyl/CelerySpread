@@ -385,3 +385,28 @@ def test_get_task_registration_diagnostics_complete(celery_app):
     assert "reason" in diagnostics
     assert diagnostics["skipped"] is True
     assert diagnostics["required_capabilities"] == {"gpu", "arm"}
+
+
+def test_worker_task_runs_on_configured_default_queue(celery_app):
+    celery_app.conf.task_default_queue = "primary"
+
+    worker = Worker(
+        app=celery_app,
+        hostname="worker1@FactoryB",
+        capabilities=["FactoryB", "gpu"],
+    )
+
+    @worker.task(bind=True)
+    @task_spec(capabilities=["FactoryB", "gpu"])
+    def process_video(self, video_id: str):
+        return video_id
+
+    with start_worker(
+        celery_app,
+        pool="solo",
+        perform_ping_check=False,
+        hostname="worker1@FactoryB",
+        #queues=["primary"],
+    ):
+        result = process_video.delay("vid-primary")
+        assert result.get(timeout=10) == "vid-primary"

@@ -35,8 +35,9 @@ class Worker:
             capabilities = []
         self._capabilities: set[str] = set(normalize_capabilities([location, *capabilities]))
         self.queues: list[str] = []
-
+        
         self._subscribe_to_single_capability_queues()
+        self.app.control.add_consumer(app.conf.task_default_queue, destination=[self.hostname])
         register_awakening_task(self.app)   # all workers can wake up
 
     @property
