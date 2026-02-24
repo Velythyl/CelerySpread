@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from celery import Celery
 
-from celeryspread import producer_api
+from celeryspread import producer
 from celeryspread.celery_app import initialize_celery_app
 
 
@@ -18,6 +18,6 @@ def celery_app() -> Celery:
 
 @pytest.fixture(autouse=True)
 def reset_producer_api_state() -> None:
-    producer_api._app = None
+    producer._app = None
     yield
-    producer_api._app = None
+    producer._app = None

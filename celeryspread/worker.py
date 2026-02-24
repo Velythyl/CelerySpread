@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from functools import wraps
 from typing import TypeVar
 
 from celery import Celery
 
-from .utils import generate_worker_id, normalize_capabilities
+from .constants import (
+    REQUIRED_CAPS_ATTR,
+    SKIP_REASON_ATTR,
+    SKIPPED_REGISTRATION_ATTR,
+    WORKER_CAPS_ATTR,
+)
+from .utils import normalize_capabilities, normalize_hostname
 from .tasks import register_awakening_task
 
 F = TypeVar("F", bound=Callable)
-REQUIRED_CAPS_ATTR = "__celeryspread_required_capabilities__"
-SKIPPED_REGISTRATION_ATTR = "__celeryspread_skipped_registration__"
-SKIP_REASON_ATTR = "__celeryspread_skip_reason__"
-WORKER_CAPS_ATTR = "__celeryspread_worker_capabilities__"
 
 
 class Worker:
@@ -25,22 +26,22 @@ class Worker:
     ):
         self.app = app
 
-        self.hostname = hostname
-        name, location = hostname.split("@")
+        self.hostname = hostname.strip()
+        name, location = normalize_hostname(self.hostname)
 
         self.name = name
-        self.location = location
+        self.location = normalize_capabilities([location])
         if capabilities is None:
             capabilities = []
-        self._capabilities = normalize_capabilities([location] + capabilities)
+        self._capabilities: set[str] = set(normalize_capabilities([location, *capabilities]))
         self.queues: list[str] = []
 
         self._subscribe_to_single_capability_queues()
         register_awakening_task(self.app)   # all workers can wake up
 
     @property
-    def capabilities(self) -> list[str]:
-        return list(self._capabilities)
+    def capabilities(self) -> set[str]:
+        return set(self._capabilities)
 
     def _subscribe_to_single_capability_queues(self) -> None:
         queue_names = normalize_capabilities(self.capabilities)
@@ -55,12 +56,11 @@ class Worker:
             required_capabilities_list = normalize_capabilities(
                 getattr(func, REQUIRED_CAPS_ATTR, [])
             )
-            worker_capabilities_list = normalize_capabilities(self.capabilities)
-            required_capabilities = set(required_capabilities_list)
-            worker_capabilities = set(worker_capabilities_list)
+            required_capabilities: set[str] = set(required_capabilities_list)
+            worker_capabilities: set[str] = self._capabilities
 
-            setattr(func, REQUIRED_CAPS_ATTR, required_capabilities_list)
-            setattr(func, WORKER_CAPS_ATTR, worker_capabilities_list)
+            setattr(func, REQUIRED_CAPS_ATTR, required_capabilities)
+            setattr(func, WORKER_CAPS_ATTR, worker_capabilities)
 
             if required_capabilities and not required_capabilities.issubset(worker_capabilities):
                 setattr(func, SKIPPED_REGISTRATION_ATTR, True)
@@ -77,23 +77,6 @@ class Worker:
             return celery_task_decorator(func)
 
         return decorator
-
-
-def task_spec(capabilities: Iterable[str]):
-    required = normalize_capabilities(capabilities)
-
-    def decorator(func: F) -> F:
-        @wraps(func)
-        def wrapped(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        setattr(wrapped, REQUIRED_CAPS_ATTR, required)
-        setattr(wrapped, SKIPPED_REGISTRATION_ATTR, False)
-        setattr(wrapped, SKIP_REASON_ATTR, None)
-        setattr(wrapped, WORKER_CAPS_ATTR, [])
-        return wrapped  # type: ignore[return-value]
-
-    return decorator
 
 
 def get_task_registration_diagnostics(func: Callable) -> dict[str, object]:
