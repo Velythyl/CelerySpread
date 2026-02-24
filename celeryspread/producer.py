@@ -87,7 +87,7 @@ def send_task(
 
 
 class Producer(CeleryEntity):
-    def __init__(self, app: Celery, *, worker: bool | None = None):
+    def __init__(self, app: Celery, *args, worker: bool | None = None, **kwargs):
         if worker not in (None, False):
             raise TypeError("Producer only supports worker=False.")
         super().__init__(app)

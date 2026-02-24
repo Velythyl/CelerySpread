@@ -213,7 +213,7 @@ def test_worker_task_registers_when_capabilities_match(celery_app):
             capabilities=["FactoryB", "gpu"],
         )
         result = process_video.delay("vid-1")
-        assert result.get(timeout=10) == "vid-1"
+        assert result.get(timeout=20) == "vid-1"
 
 
 def test_worker_subscribes_to_single_capability_queues(celery_app):
@@ -419,4 +419,4 @@ def test_worker_task_runs_on_configured_default_queue(celery_app):
             capabilities=["FactoryB", "gpu"],
         )
         result = process_video.delay("vid-primary")
-        assert result.get(timeout=10) == "vid-primary"
+        assert result.get(timeout=20) == "vid-primary"

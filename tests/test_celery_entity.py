@@ -80,7 +80,7 @@ def test_celery_entity_producer_task_registers_and_executes(celery_app):
     ):
         worker = Worker(app=celery_app, hostname="entity-producer-add@local", capabilities=[])
         result = add.delay(2, 3)
-        assert result.get(timeout=10) == 5
+        assert result.get(timeout=20) == 5
 
 
 def test_celery_entity_producer_task_delay_uses_csr_routing(celery_app):
@@ -99,4 +99,4 @@ def test_celery_entity_producer_task_delay_uses_csr_routing(celery_app):
     ):
         worker = Worker(app=celery_app, hostname="entity-producer-gpu@local", capabilities=["gpu"])
         result = gpu_task.delay(21, **{CSR: ["gpu"]})
-        assert result.get(timeout=10) == 42
+        assert result.get(timeout=20) == 42

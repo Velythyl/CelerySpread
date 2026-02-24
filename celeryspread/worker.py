@@ -23,8 +23,9 @@ class Worker(CeleryEntity):
         app: Celery,
         hostname: str,
         capabilities: Iterable[str] | None = None,
-        *,
+        *args,
         worker: bool | None = None,
+        **kwargs
     ):
         if worker not in (None, True):
             raise TypeError("Worker only supports worker=True.")
