@@ -38,6 +38,31 @@ def test_task_spec_marks_required_capabilities():
     assert getattr(process_video, REQUIRED_CAPS_ATTR) == {"factoryb", "gpu"}
 
 
+def test_task_spec_as_bare_decorator_defaults_to_empty_requirements():
+    @task_spec
+    def simple_task(x: int):
+        return x
+
+    assert getattr(simple_task, REQUIRED_CAPS_ATTR) == set()
+    assert getattr(simple_task, SKIPPED_REGISTRATION_ATTR) is False
+
+
+def test_task_spec_with_empty_positional_capabilities():
+    @task_spec([])
+    def simple_task(x: int):
+        return x
+
+    assert getattr(simple_task, REQUIRED_CAPS_ATTR) == set()
+
+
+def test_task_spec_with_positional_capabilities():
+    @task_spec(["factory A"])
+    def tagged_task(x: int):
+        return x
+
+    assert getattr(tagged_task, REQUIRED_CAPS_ATTR) == {"factory a"}
+
+
 def test_task_spec_with_empty_capabilities():
     """Task with no requirements should be registrable on any worker."""
     @task_spec(capabilities=[])
