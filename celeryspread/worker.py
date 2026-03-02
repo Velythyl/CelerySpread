@@ -41,6 +41,7 @@ class Worker(CeleryEntity):
             capabilities = []
         self._capabilities: set[str] = set(normalize_capabilities([location, *capabilities]))
         self.queues: list[str] = []
+        self._worker_ready_handler = None
         
         self._subscribe_to_single_capability_queues() # app.conf.task_default_queue
         self.app.control.add_consumer("celeryspread", destination=[self.hostname])
@@ -53,14 +54,18 @@ class Worker(CeleryEntity):
     def _subscribe_to_single_capability_queues(self) -> None:
         queue_names = normalize_capabilities(self.capabilities.union(set([self.public_hostname])))
         self.queues = queue_names
+
         #for queue_name in queue_names:
         #    self.app.control.add_consumer(queue=queue_name, destination=[self.hostname])
 
         from celery.signals import worker_ready
-        @worker_ready.connect
+
         def _setup_queues(sender, **kwargs):
             for q in self.queues:
                 sender.consumer.add_task_queue(q)
+
+        self._worker_ready_handler = _setup_queues
+        worker_ready.connect(self._worker_ready_handler, weak=False)
         self._worker = None
 
     @property
