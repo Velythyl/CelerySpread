@@ -31,8 +31,8 @@ class Worker(CeleryEntity):
             raise TypeError("Worker only supports worker=True.")
         super().__init__(app)
 
-        self.hostname = hostname.strip()
-        name, location = normalize_hostname(self.hostname)
+        name, location = normalize_hostname(hostname.strip())
+        self.hostname = f"{name}@{location}"
 
         self.name = name
         self.location = normalize_capabilities([location])
