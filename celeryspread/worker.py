@@ -50,7 +50,7 @@ class Worker(CeleryEntity):
         return set(self._capabilities)
 
     def _subscribe_to_single_capability_queues(self) -> None:
-        queue_names = normalize_capabilities(self.capabilities)
+        queue_names = normalize_capabilities(self.capabilities + [self.hostname])
         self.queues = queue_names
         for queue_name in queue_names:
             self.app.control.add_consumer(queue=queue_name, destination=[self.hostname])
