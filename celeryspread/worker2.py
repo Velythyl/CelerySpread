@@ -34,7 +34,7 @@ class Worker(CeleryEntity):
 
         name, location = normalize_hostname(hostname.strip())
         self.hostname = f"{name}@{location}"
-        self.self_queue = self.hostname.replace("@", "-at-")
+        self.self_queue_name = self.hostname.replace("@", "-at-")
 
         self.name = name
         self.location = normalize_capabilities([location])
