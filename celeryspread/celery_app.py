@@ -15,11 +15,9 @@ class RuntimeContext:
     #result_expires_seconds: int
 
 
-def build_runtime_context(*, use_memory_transport: bool = False) -> RuntimeContext:
-    default_project = os.environ.get("GCP_PROJECT_ID", "local-project")
-
-    broker_url = "memory://"
-    result_backend = "cache+memory://"
+def build_runtime_context() -> RuntimeContext:
+    broker_url = os.environ.get("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
+    result_backend = os.environ.get("CELERY_RESULT_BACKEND", "redis://127.0.0.1:6379/1")
 
     return RuntimeContext(
         broker_url=broker_url,
@@ -44,7 +42,7 @@ def configure_celery_app(runtime_context: RuntimeContext) -> Celery:
     return app
 
 
-def initialize_celery_app(*, use_memory_transport: bool = False) -> tuple[Celery, RuntimeContext]:
-    runtime_context = build_runtime_context(use_memory_transport=use_memory_transport)
+def initialize_celery_app() -> tuple[Celery, RuntimeContext]:
+    runtime_context = build_runtime_context()
     app = configure_celery_app(runtime_context)
     return app, runtime_context

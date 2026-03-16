@@ -20,15 +20,8 @@ def generate_worker_id() -> str:
     return str(uuid.uuid4().hex)
 
 
-def normalize_hostname(hostname: str) -> tuple[str, str]:
+def normalize_hostname(hostname: str) -> str:
     normalized = hostname.strip()
-    if "@" not in normalized:
-        raise ValueError(f"hostname must be in 'name@location' format, got: {hostname}")
-
-    name, location = normalized.split("@", 1)
-    normalized_name = name.strip().lower()
-    normalized_location = location.strip().lower()
-    if not normalized_name or not normalized_location:
-        raise ValueError(f"hostname must be in 'name@location' format, got: {hostname}")
-
-    return normalized_name, normalized_location
+    if not normalized:
+        raise ValueError("hostname must be a non-empty string")
+    return normalized

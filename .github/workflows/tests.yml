@@ -5,8 +5,12 @@ on:
     branches-ignore:
       - release
   pull_request:
+    branches-ignore:
+      - release
 
 jobs:
   tests:
     name: Run tests
     uses: ./.github/workflows/test-reusable.yml
+    with:
+      fail_fast: false

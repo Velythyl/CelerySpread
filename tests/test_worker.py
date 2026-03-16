@@ -1,7 +1,6 @@
 import time
 
 import pytest
-from celery.contrib.testing.worker import start_worker
 
 from celeryspread.constants import (
     REQUIRED_CAPS_ATTR,
@@ -118,24 +117,24 @@ def test_worker_capabilities_are_sets(celery_app):
 
 
 def test_worker_capabilities_include_location_from_hostname(celery_app):
-    """The location part of hostname should be added as a capability."""
+    """Hostname is metadata only and should not affect capabilities."""
     worker = Worker(
         app=celery_app,
         hostname="worker1@FactoryB",
         capabilities=["gpu"],
     )
-    assert "factoryb" in worker.capabilities
     assert "gpu" in worker.capabilities
+    assert "factoryb" not in worker.capabilities
 
 
 def test_worker_capabilities_with_none(celery_app):
-    """Worker with capabilities=None should only have location capability."""
+    """Worker with capabilities=None should have no capabilities."""
     worker = Worker(
         app=celery_app,
         hostname="worker1@datacenter1",
         capabilities=None,
     )
-    assert worker.capabilities == {"datacenter1"}
+    assert worker.capabilities == set()
 
 
 def test_worker_capabilities_deduplicate(celery_app):
@@ -160,52 +159,39 @@ def test_worker_capabilities_property_returns_copy(celery_app):
     assert "hacked" not in worker.capabilities
 
 
-def test_worker_hostname_without_at_raises_value_error(celery_app):
-    with pytest.raises(ValueError, match="name@location"):
+def test_worker_hostname_empty_raises_value_error(celery_app):
+    with pytest.raises(ValueError, match="non-empty"):
         Worker(
             app=celery_app,
-            hostname="worker1-factoryb",
+            hostname="   ",
             capabilities=["gpu"],
         )
 
 
-def test_worker_hostname_with_empty_location_raises_value_error(celery_app):
-    with pytest.raises(ValueError, match="name@location"):
-        Worker(
-            app=celery_app,
-            hostname="worker1@",
-            capabilities=["gpu"],
-        )
-
-
-def test_worker_hostname_splits_only_once(celery_app):
+def test_worker_hostname_keeps_original_format(celery_app):
     worker = Worker(
         app=celery_app,
         hostname="worker1@factory@zone",
         capabilities=["gpu"],
     )
 
-    assert worker.name == "worker1"
-    assert worker.location == ["factory@zone"]
-    assert "factory@zone" in worker.capabilities
+    assert worker.hostname == "worker1@factory@zone"
 
 
-def test_worker_hostname_name_is_normalized_to_lowercase(celery_app):
+def test_worker_hostname_preserves_case(celery_app):
     worker = Worker(
         app=celery_app,
         hostname="WorkerName@FactoryB",
         capabilities=["gpu"],
     )
 
-    assert worker.name == "workername"
-    assert worker.location == ["factoryb"]
-    assert "factoryb" in worker.capabilities
+    assert worker.hostname == "WorkerName@FactoryB"
 
 
 # --- Worker task registration tests ---
 
 
-def test_worker_task_registers_when_capabilities_match(celery_app):
+def test_worker_task_registers_when_capabilities_match(celery_app, run_worker):
     worker = Worker(
         app=celery_app,
         hostname="worker1@FactoryB",
@@ -225,65 +211,107 @@ def test_worker_task_registers_when_capabilities_match(celery_app):
     assert diagnostics["skipped"] is False
     assert diagnostics["reason"] is None
 
-    with start_worker(
-        celery_app,
-        pool="solo",
-        perform_ping_check=False,
-        hostname="worker1@FactoryB",
-        queues=["default"],
+    with run_worker(
+        worker.hostname,
+        capabilities=["FactoryB", "gpu"],
+        include_default_queue=True,
     ):
-        runtime_worker = Worker(
-            app=celery_app,
-            hostname="worker1@FactoryB",
-            capabilities=["FactoryB", "gpu"],
-        )
         result = process_video.delay("vid-1")
         assert result.get(timeout=20) == "vid-1"
 
 
 def test_worker_subscribes_to_single_capability_queues(celery_app):
-    with start_worker(
-        celery_app,
-        pool="solo",
-        perform_ping_check=False,
+    """Test that Worker computes correct queue names from capabilities."""
+    worker = Worker(
+        app=celery_app,
         hostname="worker1@FactoryB",
-        queues=["default"],
-    ):
-        worker = Worker(
-            app=celery_app,
-            hostname="worker1@FactoryB",
-            capabilities=["FactoryB", "gpu", "arm"],
+        capabilities=["FactoryB", "gpu", "arm"],
+    )
+    # Worker subscribes to capability queues + app default + celeryspread + random self queue
+    queue_set = set(worker.queues)
+    assert {"factoryb", "arm", "gpu"}.issubset(queue_set)
+    assert celery_app.conf.task_default_queue in queue_set
+    assert "celeryspread" in queue_set
+    assert worker.self_queue_name in queue_set
+    assert worker.self_queue_name.startswith("celeryspread.self.")
+
+
+def test_worker_queues_actually_subscribed_at_runtime(celery_app, run_worker):
+    """Integration test: verify queues are actually subscribed when worker runs."""
+    # Start worker with the computed queues directly
+    worker = Worker(
+        app=celery_app,
+        hostname="worker1@FactoryB",
+        capabilities=["FactoryB", "gpu", "arm"],
+    )
+    with run_worker(worker.hostname, capabilities=["FactoryB", "gpu", "arm"]) as runtime_worker:
+        assert _wait_for_worker_queues(celery_app, runtime_worker.hostname, set(runtime_worker.queues))
+
+
+def test_worker_can_enqueue_task_to_its_own_self_queue(celery_app, run_worker):
+    """A task running on a worker should be able to enqueue work onto that worker's self queue."""
+    worker = Worker(
+        app=celery_app,
+        hostname="worker-self@FactoryB",
+        capabilities=["FactoryB", "gpu"],
+    )
+
+    @worker.task(bind=True, name="tasks.self_queue_child")
+    def self_queue_child(self, value: str) -> str:
+        return f"child:{value}"
+
+    @worker.task(bind=True, name="tasks.self_queue_parent")
+    def self_queue_parent(self, value: str, self_queue_name: str) -> str:
+        child_result = self.app.send_task(
+            "tasks.self_queue_child",
+            args=(value,),
+            queue=self_queue_name,
         )
-        assert set(worker.queues) == {"factoryb", "arm", "gpu"}
-        assert _wait_for_worker_queues(celery_app, worker.hostname, set(worker.queues))
+        return child_result.id
+
+    with run_worker(worker.hostname, capabilities=["FactoryB", "gpu"]) as runtime_worker:
+        parent_result = self_queue_parent.delay("ok", runtime_worker.self_queue_name)
+        child_task_id = parent_result.get(timeout=20)
+        child_result = celery_app.AsyncResult(child_task_id)
+        assert child_result.get(timeout=20) == "child:ok"
 
 
 def test_worker_task_skips_registration_when_capabilities_do_not_match(celery_app):
-    with start_worker(
-        celery_app,
-        pool="solo",
-        perform_ping_check=False,
+    worker = Worker(
+        app=celery_app,
         hostname="worker1@FactoryB",
-        queues=["default"],
-    ):
-        worker = Worker(
-            app=celery_app,
-            hostname="worker1@FactoryB",
-            capabilities=["FactoryB", "cpu"],
-        )
-        before_tasks = set(celery_app.tasks.keys())
+        capabilities=["FactoryB", "cpu"],
+    )
+    before_tasks = set(celery_app.tasks.keys())
 
+    @worker.task(bind=True)
+    @task_spec(capabilities=["FactoryB", "gpu"])
+    def process_video(video_id: str):
+        return video_id
+
+    assert set(celery_app.tasks.keys()) == before_tasks
+    assert getattr(process_video, SKIPPED_REGISTRATION_ATTR) is True
+    assert "gpu" in getattr(process_video, SKIP_REASON_ATTR)
+    diagnostics = get_task_registration_diagnostics(process_video)
+    assert diagnostics["skipped"] is True
+    assert diagnostics["required_capabilities"] == {"factoryb", "gpu"}
+
+
+def test_worker_task_skip_logs_warning(celery_app, caplog):
+    worker = Worker(
+        app=celery_app,
+        hostname="worker1@FactoryB",
+        capabilities=["cpu"],
+    )
+
+    with caplog.at_level("WARNING"):
         @worker.task(bind=True)
-        @task_spec(capabilities=["FactoryB", "gpu"])
+        @task_spec(capabilities=["gpu"])
         def process_video(video_id: str):
             return video_id
 
-        assert set(celery_app.tasks.keys()) == before_tasks
-        assert getattr(process_video, SKIPPED_REGISTRATION_ATTR) is True
-        assert "gpu" in getattr(process_video, SKIP_REASON_ATTR)
-        diagnostics = get_task_registration_diagnostics(process_video)
-        assert diagnostics["skipped"] is True
-        assert diagnostics["required_capabilities"] == {"factoryb", "gpu"}
+    assert getattr(process_video, SKIPPED_REGISTRATION_ATTR) is True
+    assert "Task registration skipped" in caplog.text
 
 
 def test_worker_task_registers_when_empty_task_spec(celery_app):
@@ -373,7 +401,6 @@ def test_worker_stores_capabilities_on_registered_task(celery_app):
     assert isinstance(worker_caps, set)
     assert "gpu" in worker_caps
     assert "arm" in worker_caps
-    assert "factoryb" in worker_caps
 
 
 def test_worker_stores_capabilities_on_skipped_task(celery_app):
@@ -392,7 +419,6 @@ def test_worker_stores_capabilities_on_skipped_task(celery_app):
     worker_caps = getattr(skipped_task, WORKER_CAPS_ATTR)
     assert isinstance(worker_caps, set)
     assert "cpu" in worker_caps
-    assert "factoryb" in worker_caps
 
 
 def test_get_task_registration_diagnostics_complete(celery_app):
@@ -417,7 +443,7 @@ def test_get_task_registration_diagnostics_complete(celery_app):
     assert diagnostics["required_capabilities"] == {"gpu", "arm"}
 
 
-def test_worker_task_runs_on_configured_default_queue(celery_app):
+def test_worker_task_runs_on_configured_default_queue(celery_app, run_worker):
     celery_app.conf.task_default_queue = "primary"
 
     worker = Worker(
@@ -431,17 +457,10 @@ def test_worker_task_runs_on_configured_default_queue(celery_app):
     def process_video(self, video_id: str):
         return video_id
 
-    with start_worker(
-        celery_app,
-        pool="solo",
-        perform_ping_check=False,
-        hostname="worker1@FactoryB",
-        #queues=["primary"],
+    with run_worker(
+        worker.hostname,
+        capabilities=["FactoryB", "gpu"],
+        include_default_queue=True,
     ):
-        runtime_worker = Worker(
-            app=celery_app,
-            hostname="worker1@FactoryB",
-            capabilities=["FactoryB", "gpu"],
-        )
         result = process_video.delay("vid-primary")
         assert result.get(timeout=20) == "vid-primary"

@@ -79,13 +79,10 @@ def test_normalize_capabilities_invariants_hold_for_varied_inputs():
 
 
 def test_normalize_hostname_lowercases_name_and_location():
-    name, location = normalize_hostname(" WorkerA@FactoryB ")
-    assert name == "workera"
-    assert location == "factoryb"
+    normalized = normalize_hostname(" WorkerA@FactoryB ")
+    assert normalized == "WorkerA@FactoryB"
 
 
 def test_normalize_hostname_requires_name_and_location():
-    with pytest.raises(ValueError, match="name@location"):
-        normalize_hostname("worker-without-location")
-    with pytest.raises(ValueError, match="name@location"):
-        normalize_hostname("worker@")
+    with pytest.raises(ValueError, match="non-empty"):
+        normalize_hostname("   ")

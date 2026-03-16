@@ -3,8 +3,6 @@ from __future__ import annotations
 from celery import Celery
 
 
-
-
 class CeleryEntity:
     def __new__(cls, *args, worker: bool | None = None, **kwargs):
         if cls is CeleryEntity:

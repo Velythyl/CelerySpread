@@ -6,7 +6,7 @@ from typing import Any
 from celery import Celery, Task
 
 from .celery_entity import CeleryEntity
-from .constants import CSR, REQUIRED_CAPS_ATTR
+from .constants import CSR, DEFAULT_CELERYSPREAD_QUEUE, REQUIRED_CAPS_ATTR
 from .utils import capabilities_to_queue_name, normalize_capabilities
 
 _app: Celery | None = None
@@ -46,10 +46,8 @@ def _dispatch_with_requirements(
 
     if not requirements_list:
         if apply_async_callback is None:
-            return app.send_task(task_name, args=args, kwargs=kwargs, queue="celeryspread")
-        options = dict(apply_async_options)
-        options.setdefault("queue", "celeryspread")
-        return apply_async_callback(args=args, kwargs=kwargs, **options)
+            return app.send_task(task_name, args=args, kwargs=kwargs)
+        return apply_async_callback(args=args, kwargs=kwargs, **dict(apply_async_options))
 
     queue_name = capabilities_to_queue_name(requirements_list)
 
@@ -58,7 +56,7 @@ def _dispatch_with_requirements(
         app.send_task(
             "celeryspread.tasks.awaken_complex_queue_workers",
             args=[queue_name, requirements_list],
-            queue="celeryspread",
+            queue=DEFAULT_CELERYSPREAD_QUEUE,
         )
 
     if apply_async_callback is None:

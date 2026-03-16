@@ -1,5 +1,4 @@
 import pytest
-from celery.contrib.testing.worker import start_worker
 
 from celeryspread import CeleryEntity
 from celeryspread.constants import CSR, SKIPPED_REGISTRATION_ATTR
@@ -24,7 +23,7 @@ def test_celery_entity_worker_true_returns_worker(celery_app):
     )
 
     assert isinstance(entity, Worker)
-    assert "factoryb" in entity.capabilities
+    assert "gpu" in entity.capabilities
 
 
 def test_celery_entity_requires_explicit_worker_mode(celery_app):
@@ -62,7 +61,7 @@ def test_celery_entity_worker_path_keeps_skip_behavior(celery_app):
     assert getattr(my_task, SKIPPED_REGISTRATION_ATTR) is True
 
 
-def test_celery_entity_producer_task_registers_and_executes(celery_app):
+def test_celery_entity_producer_task_registers_and_executes(celery_app, run_worker):
     producer = CeleryEntity(app=celery_app, worker=False)
 
     @producer.task(name="tasks.entity_producer_add")
@@ -71,32 +70,18 @@ def test_celery_entity_producer_task_registers_and_executes(celery_app):
 
     assert add.name in celery_app.tasks
 
-    with start_worker(
-        celery_app,
-        pool="solo",
-        perform_ping_check=False,
-        hostname="entity-producer-add@local",
-        queues=["default"],
-    ):
-        worker = Worker(app=celery_app, hostname="entity-producer-add@local", capabilities=[])
+    with run_worker("entity-producer-add@local", capabilities=[]):
         result = add.delay(2, 3)
         assert result.get(timeout=20) == 5
 
 
-def test_celery_entity_producer_task_delay_uses_csr_routing(celery_app):
+def test_celery_entity_producer_task_delay_uses_csr_routing(celery_app, run_worker):
     producer = CeleryEntity(app=celery_app, worker=False)
 
     @producer.task(name="tasks.entity_producer_gpu")
     def gpu_task(value: int) -> int:
         return value * 2
 
-    with start_worker(
-        celery_app,
-        pool="solo",
-        perform_ping_check=False,
-        hostname="entity-producer-gpu@local",
-        queues=["gpu"],
-    ):
-        worker = Worker(app=celery_app, hostname="entity-producer-gpu@local", capabilities=["gpu"])
+    with run_worker("entity-producer-gpu@local", capabilities=["gpu"]):
         result = gpu_task.delay(21, **{CSR: ["gpu"]})
         assert result.get(timeout=20) == 42

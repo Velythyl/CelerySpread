@@ -6,6 +6,7 @@ from typing import Any
 
 from celery import Celery
 
+from .constants import DEFAULT_CELERYSPREAD_QUEUE
 from .utils import normalize_capabilities
 
 
@@ -32,7 +33,7 @@ def register_awakening_task(
     @app.task(
         name="celeryspread.tasks.awaken_complex_queue_workers",
         bind=True,
-        queue=app.conf.task_default_queue,
+        queue=DEFAULT_CELERYSPREAD_QUEUE,
     )
     def awaken_complex_queue_workers(self, queue_name: str, requirements: list[str]):
         inspector = app.control.inspect(timeout=inspect_timeout)

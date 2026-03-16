@@ -2,6 +2,11 @@ name: Reusable Test Workflow
 
 on:
   workflow_call:
+    inputs:
+      fail_fast:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   tests:
@@ -23,4 +28,9 @@ jobs:
           uv sync --extra dev
 
       - name: Run test suite
-        run: uv run pytest
+        run: |
+          if [ "${{ inputs.fail_fast }}" = "true" ]; then
+            uv run -m pytest -x
+          else
+            uv run -m pytest
+          fi

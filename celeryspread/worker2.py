@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+import logging
 from typing import List, TypeVar, Union
 
 from celery import Celery
 
 from .celery_entity import CeleryEntity
 from .constants import (
+    DEFAULT_CELERYSPREAD_QUEUE,
     REQUIRED_CAPS_ATTR,
+    SELF_QUEUE_PREFIX,
     SKIP_REASON_ATTR,
     SKIPPED_REGISTRATION_ATTR,
     WORKER_CAPS_ATTR,
 )
-from .utils import normalize_capabilities, normalize_hostname
+from .utils import generate_worker_id, normalize_capabilities, normalize_hostname
 from .tasks import register_awakening_task
 
 F = TypeVar("F", bound=Callable)
+logger = logging.getLogger(__name__)
 
 
 class Worker(CeleryEntity):
@@ -32,15 +36,12 @@ class Worker(CeleryEntity):
             raise TypeError("Worker only supports worker=True.")
         super().__init__(app)
 
-        name, location = normalize_hostname(hostname.strip())
-        self.hostname = f"{name}@{location}"
-        self.self_queue_name = self.hostname.replace("@", "-at-")
+        self.hostname = normalize_hostname(hostname)
+        self.self_queue_name = f"{SELF_QUEUE_PREFIX}.{generate_worker_id()}"
 
-        self.name = name
-        self.location = normalize_capabilities([location])
         if capabilities is None:
             capabilities = []
-        self._capabilities: set[str] = set(normalize_capabilities([location, *capabilities]))
+        self._capabilities: set[str] = set(normalize_capabilities(capabilities))
         self.queues: list[str] = []
         self._worker_ready_handler = None
 
@@ -62,7 +63,11 @@ class Worker(CeleryEntity):
 
     def _subscribe_to_single_capability_queues(self) -> None:
         queue_names = normalize_capabilities(self.capabilities)
-        self.queues = queue_names + ["celeryspread", self.self_queue]
+        self.queues = queue_names + [
+            self.app.conf.task_default_queue,
+            DEFAULT_CELERYSPREAD_QUEUE,
+            self.self_queue_name,
+        ]
 
         from celery.signals import celeryd_after_setup
 
@@ -101,6 +106,7 @@ class Worker(CeleryEntity):
                     f"{missing}."
                 )
                 setattr(func, SKIP_REASON_ATTR, skip_reason)
+                logger.warning(skip_reason)
                 return func
 
             setattr(func, SKIPPED_REGISTRATION_ATTR, False)
